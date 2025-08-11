@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, MicOff, Paperclip, Send, Loader2 } from 'lucide-react'
+import { Mic, MicOff, Paperclip, Send, Loader2, Copy, Volume2, RefreshCw, Sparkles } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { FileText, Image as ImageIcon, File } from 'lucide-react'
 
@@ -131,11 +131,11 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                     )}
                 </AnimatePresence>
 
-                {messages?.map((m) => (
+                {messages?.map((m, idx) => (
                     <div key={m.id} className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
                         {m.role === 'user' ? (
-                            <div className="max-w-[85%]">
-                                <div className="rounded-2xl px-4 py-2 bg-gray-800/70 border border-gray-700 text-gray-100">
+                            <div className="max-w-[85%]" style={{ maxWidth: 'min(900px, 85%)' }}>
+                                <div className="rounded-2xl px-4 py-2 bg-gray-800/70 border border-gray-700 text-gray-100 break-all">
                                     {m.content}
                                     {Array.isArray(m.files) && m.files.length > 0 && (
                                         <div className="mt-2 flex flex-wrap gap-2">
@@ -165,8 +165,44 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                 )}
                             </div>
                         ) : (
-                            <div className="max-w-[85%] text-gray-100 leading-relaxed">
+                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-all" style={{ maxWidth: 'min(900px, 85%)' }}>
                                 {m.content}
+                                {/* Assistant actions */}
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                    <button
+                                        onClick={() => navigator.clipboard?.writeText(m.content || '')}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-200"
+                                        title="Copy"
+                                    >
+                                        <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            try {
+                                                const u = new SpeechSynthesisUtterance(m.content || '')
+                                                window.speechSynthesis?.speak(u)
+                                            } catch { }
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-200"
+                                        title="Read aloud"
+                                    >
+                                        <Volume2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        onClick={() => console.log('regenerate requested for message', m.id)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-200"
+                                        title="Regenerate"
+                                    >
+                                        <RefreshCw className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        onClick={() => console.log('retouch requested for message', m.id)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-200"
+                                        title="Retouch"
+                                    >
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -190,7 +226,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                     initial={{ y: 20, opacity: 0, borderRadius: 999 }}
                     animate={{ y: 0, opacity: 1, borderRadius: isMultiline ? 14 : 999 }}
                     transition={{ type: 'spring', stiffness: 220, damping: 22, mass: 0.6 }}
-                    className={`bg-gray-800/80 border border-gray-700 p-3 overflow-hidden`}
+                    className={`bg-gray-800/80 border border-gray-700 p-3 overflow-hidden w-full max-w-[900px] mx-auto`}
                 >
                     <div className={`flex ${isMultiline ? 'items-end' : 'items-center'} gap-3`}>
                         <DropdownMenu onOpenChange={setIsFileDropdownOpen}>
@@ -218,8 +254,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
 
                         <textarea
                             ref={textareaRef}
-                            className={`flex-1 bg-transparent text-gray-100 resize-none outline-none text-base max-h-[200px] placeholder:text-gray-400 ${isMultiline ? 'py-2 leading-relaxed min-h-[48px]' : 'h-[44px] min-h-[44px] leading-[44px] py-0'
-                                } px-0`}
+                            className={`flex-1 min-w-0 bg-transparent text-gray-100 resize-none outline-none text-base max-h-[200px] placeholder:text-gray-400 break-all ${isMultiline ? 'py-2 leading-relaxed min-h-[48px]' : 'h-[44px] min-h-[44px] leading-[44px] py-0'} px-0`}
                             placeholder="Ask anything… (Enter to send, Shift+Enter for new line)"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
