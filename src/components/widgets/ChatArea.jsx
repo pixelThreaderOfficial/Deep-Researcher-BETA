@@ -149,10 +149,10 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                     )}
                 </AnimatePresence>
 
-                {stableMessages?.map((m) => (
-                    <div key={m.id} className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
+                {stableMessages?.map((m, index) => (
+                    <div key={m.id} className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'} ${index > 0 ? 'mt-6' : ''}`}>
                         {m.role === 'user' ? (
-                            <div className="max-w-[85%]" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <div className="max-w-[85%]">
                                 <div className="rounded-2xl px-4 py-2 bg-gray-800/70 border border-gray-700 text-gray-100 break-all">
                                     {m.content}
                                     {Array.isArray(m.files) && m.files.length > 0 && (
@@ -183,7 +183,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                 )}
                             </div>
                         ) : (
-                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <div className="w-full text-gray-100 leading-relaxed break-words">
                                 {m.streaming ? (
                                     <StreamingMessageView text={m.content || ''} />
                                 ) : (
@@ -244,7 +244,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
 
                 <AnimatePresence>
                     {isProcessing && (
-                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-center gap-2 text-gray-400">
+                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-center gap-2 text-gray-400 mt-4">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Thinking…
                         </motion.div>
@@ -263,16 +263,19 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
             {/* Messages */}
             <div
                 ref={messagesContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 custom-scrollbar space-y-4 relative"
+                className="flex-1 min-h-0 overflow-y-auto pt-6 custom-scrollbar relative"
             >
-                {stableView}
-                {streamingIdx >= 0 && messages[streamingIdx]?.role === 'assistant' && (
-                    <div key={messages[streamingIdx].id} className="flex justify-start">
-                        <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
-                            <StreamingMessageView text={messages[streamingIdx].content || ''} />
+                {/* Centered container for all messages */}
+                <div className="w-full max-w-[900px] mx-auto px-4 space-y-6">
+                    {stableView}
+                    {streamingIdx >= 0 && messages[streamingIdx]?.role === 'assistant' && (
+                        <div key={messages[streamingIdx].id} className="flex justify-start mt-6">
+                            <div className="w-full text-gray-100 leading-relaxed break-words">
+                                <StreamingMessageView text={messages[streamingIdx].content || ''} />
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {/* Composer */}
