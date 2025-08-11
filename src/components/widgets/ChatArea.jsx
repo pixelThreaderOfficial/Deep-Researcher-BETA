@@ -166,9 +166,9 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                 )}
                             </div>
                         ) : (
-                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-all" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-words whitespace-pre-wrap" style={{ maxWidth: 'min(900px, 85%)' }}>
                                 {m.streaming ? (
-                                    <StreamingText text={m.content} appearDelay={0.01} />
+                                    <StreamingText text={m.content} />
                                 ) : (
                                     m.content
                                 )}

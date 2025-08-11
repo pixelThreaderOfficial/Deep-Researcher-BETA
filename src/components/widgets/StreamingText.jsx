@@ -1,36 +1,18 @@
 import React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 
-// StreamingText: progressively animates new tokens as they appear
-// Props:
-// - text: full current text
-// - tokenSeparator: regex/string for splitting (default: whitespace)
-// - appearDelay: stagger delay between tokens (seconds)
-// - className: optional
-export default function StreamingText({
-    text = '',
-    tokenSeparator = /\s+/g,
-    appearDelay = 0.02,
-    className = ''
-}) {
-    const tokens = String(text).length ? String(text).split(/(\s+)/) : []
-
+// StreamingText: render the full text in one flow to avoid spacing artifacts.
+// Keeps whitespace and newlines intact with CSS from parent (use whitespace-pre-wrap).
+export default function StreamingText({ text = '', className = '' }) {
     return (
-        <div className={className}>
-            <AnimatePresence initial={false}>
-                {tokens.map((tok, idx) => (
-                    <motion.span
-                        key={`t-${idx}-${tok.length}`}
-                        initial={{ opacity: 0, y: 2 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -2 }}
-                        transition={{ duration: 0.18, delay: idx * appearDelay }}
-                    >
-                        {tok}
-                    </motion.span>
-                ))}
-            </AnimatePresence>
-        </div>
+        <motion.span
+            className={className}
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15 }}
+        >
+            {text}
+        </motion.span>
     )
 }
 

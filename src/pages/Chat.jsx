@@ -1,8 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import ChatSidebar from '../components/widgets/ChatSidebar'
 import ChatHeader from '../components/widgets/ChatHeader'
 import ChatArea from '../components/widgets/ChatArea'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
 const Chat = () => {
     const { id } = useParams()
@@ -14,6 +16,9 @@ const Chat = () => {
     const [messagesByChat, setMessagesByChat] = useState({
         ch_1: [],
     })
+    const [model] = useState('granite3-moe')
+    const [currentTaskId, setCurrentTaskId] = useState(null)
+    const unlistenRefs = useRef({ stream: null, done: null })
 
     const recentChats = useMemo(() => (
         Object.keys(messagesByChat).map((id, idx) => ({
@@ -25,19 +30,62 @@ const Chat = () => {
 
     const currentMessages = messagesByChat[activeChatId] || []
 
-    function generateSyntheticResponse(prompt = '', files = []) {
-        const text = String(prompt || '').trim()
-        const words = (text.match(/[A-Za-z0-9_-]+/g) || []).map(w => w.toLowerCase())
-        const longWords = Array.from(new Set(words.filter(w => w.length > 4)))
-        const top = longWords.slice(0, 5)
-        const attachNote = files && files.length > 0 ? `\n\nAttachments noted (${files.length}).` : ''
-        if (!text) return 'I received your message. Provide more details and I will draft an actionable plan.'
-        const summary = text.length > 180 ? `${text.slice(0, 180)}…` : text
-        return (
-            `Summary\n- ${summary}\n\nKey points` +
-            (top.length ? top.map(k => `\n- ${k}`).join('') : '\n- Clarify objectives\n- Desired outcome\n- Constraints') +
-            `\n\nNext steps\n- Outline goals and success criteria\n- Identify data/resources needed\n- Propose a concise plan or draft` + attachNote
-        )
+    function buildOllamaMessagesFrom(list) {
+        return (list || []).map(m => ({ role: m.role, content: m.content }))
+    }
+
+    async function startAssistantStream(chatId, historyOverride = null) {
+        // Stop any previous running stream to avoid mixing outputs
+        if (currentTaskId) {
+            try { await invoke('cmd_force_stop', { taskId: currentTaskId }) } catch { }
+            if (unlistenRefs.current.stream) { unlistenRefs.current.stream(); unlistenRefs.current.stream = null }
+            if (unlistenRefs.current.done) { unlistenRefs.current.done(); unlistenRefs.current.done = null }
+        }
+
+        const history = historyOverride || buildOllamaMessagesFrom(messagesByChat[chatId])
+        try {
+            const taskId = await invoke('cmd_stream_chat_start', {
+                model,
+                messages: history,
+            })
+            setCurrentTaskId(taskId)
+            const replyId = Date.now() + 1
+            setMessagesByChat(prev => ({
+                ...prev,
+                [chatId]: [...(prev[chatId] || []), { id: replyId, role: 'assistant', content: '', streaming: true, createdAt: new Date().toISOString() }]
+            }))
+
+            // Cleanup any previous listeners
+            if (unlistenRefs.current.stream) { unlistenRefs.current.stream(); unlistenRefs.current.stream = null }
+            if (unlistenRefs.current.done) { unlistenRefs.current.done(); unlistenRefs.current.done = null }
+
+            unlistenRefs.current.stream = await listen('ollama:stream', (event) => {
+                const payload = event?.payload || {}
+                if (payload.taskId !== taskId) return
+                const token = payload.token || ''
+                setMessagesByChat(prev => ({
+                    ...prev,
+                    [chatId]: (prev[chatId] || []).map(m => m.id === replyId ? { ...m, content: (m.content || '') + token } : m)
+                }))
+            })
+
+            unlistenRefs.current.done = await listen('ollama:stream_done', (event) => {
+                const payload = event?.payload || {}
+                if (payload.taskId !== taskId) return
+                setMessagesByChat(prev => ({
+                    ...prev,
+                    [chatId]: (prev[chatId] || []).map(m => m.id === replyId ? { ...m, streaming: false } : m)
+                }))
+                setIsProcessing(false)
+                setCurrentTaskId(null)
+                if (unlistenRefs.current.stream) { unlistenRefs.current.stream(); unlistenRefs.current.stream = null }
+                if (unlistenRefs.current.done) { unlistenRefs.current.done(); unlistenRefs.current.done = null }
+            })
+        } catch (e) {
+            console.error('Failed to start stream:', e)
+            setIsProcessing(false)
+            setCurrentTaskId(null)
+        }
     }
 
     useEffect(() => {
@@ -53,25 +101,9 @@ const Chat = () => {
                     ...prev,
                     [id]: [...(prev[id] || []), initialMsg]
                 }))
-                // Also synthesize an assistant reply for the seeded message
-                // Stream synthetic response
-                const full = generateSyntheticResponse(initialMsg.content, initialMsg.files)
-                const replyId = Date.now() + 1
-                setMessagesByChat(prev => ({
-                    ...prev,
-                    [id]: [...(prev[id] || []), { id: replyId, role: 'assistant', content: '', streaming: true, createdAt: new Date().toISOString() }]
-                }))
-                const tokens = full.split(/(\s+)/)
-                let acc = ''
-                tokens.forEach((t, i) => {
-                    setTimeout(() => {
-                        acc += t
-                        setMessagesByChat(prev => ({
-                            ...prev,
-                            [id]: (prev[id] || []).map(m => m.id === replyId ? { ...m, content: acc, streaming: i < tokens.length - 1 } : m)
-                        }))
-                    }, 10 * i)
-                })
+                setIsProcessing(true)
+                const history = buildOllamaMessagesFrom([...(messagesByChat[id] || []), initialMsg])
+                startAssistantStream(id, history)
             }
             navigate(location.pathname, { replace: true, state: {} })
         }
@@ -101,28 +133,20 @@ const Chat = () => {
             [activeChatId]: [...(prev[activeChatId] || []), userMsg],
         }))
         setIsProcessing(true)
-
-        // Synthetic AI behavior: streamed reply
-        await new Promise((r) => setTimeout(r, 250))
-        const full = generateSyntheticResponse(text, files)
-        const replyId = Date.now() + 1
-        setMessagesByChat(prev => ({
-            ...prev,
-            [activeChatId]: [...(prev[activeChatId] || []), { id: replyId, role: 'assistant', content: '', streaming: true, createdAt: new Date().toISOString() }]
-        }))
-        const tokens = full.split(/(\s+)/)
-        let acc = ''
-        tokens.forEach((t, i) => {
-            setTimeout(() => {
-                acc += t
-                setMessagesByChat(prev => ({
-                    ...prev,
-                    [activeChatId]: (prev[activeChatId] || []).map(m => m.id === replyId ? { ...m, content: acc, streaming: i < tokens.length - 1 } : m)
-                }))
-            }, 10 * i)
-        })
-        setIsProcessing(false)
+        const history = buildOllamaMessagesFrom([...(messagesByChat[activeChatId] || []), userMsg])
+        startAssistantStream(activeChatId, history)
     }
+
+    // Cleanup listeners on unmount
+    useEffect(() => {
+        return () => {
+            if (unlistenRefs.current.stream) { unlistenRefs.current.stream(); unlistenRefs.current.stream = null }
+            if (unlistenRefs.current.done) { unlistenRefs.current.done(); unlistenRefs.current.done = null }
+            if (currentTaskId) {
+                invoke('cmd_force_stop', { taskId: currentTaskId }).catch(() => { })
+            }
+        }
+    }, [])
 
     return (
         <div className="h-screen">
