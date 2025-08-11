@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, MicOff, Paperclip, Send, Loader2, Copy, Volume2, RefreshCw, Sparkles } from 'lucide-react'
+import { Mic, MicOff, Paperclip, Send, Loader2, Copy, Volume2, RefreshCw, Sparkles, ChevronDown } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { FileText, Image as ImageIcon, File } from 'lucide-react'
 import '../../md.css'
@@ -16,9 +16,15 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
     const [isMultiline, setIsMultiline] = useState(false)
     const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false)
     const messagesContainerRef = useRef(null)
+    const messageRefs = useRef(new Map())
     const textareaRef = useRef(null)
     const fileInputRef = useRef(null)
     const microphoneRef = useRef(null)
+    const [isPinnedToBottom, setIsPinnedToBottom] = useState(true)
+    const lastAlignedStreamIdRef = useRef(null)
+    const lastUserAlignedRef = useRef(null)
+    const prevMessagesCountRef = useRef(0)
+    const pendingAlignUserToTopRef = useRef(false)
 
     const fileTypes = [
         { id: 'images', name: 'Images', icon: ImageIcon, description: 'PNG, JPG, GIF' },
@@ -26,12 +32,49 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
         { id: 'documents', name: 'Documents', icon: FileText, description: 'DOC, DOCX, TXT' },
     ]
 
+    // Keep view pinned to bottom while streaming/new messages, unless user scrolled up
     useEffect(() => {
-        if (messagesContainerRef.current) {
-            const el = messagesContainerRef.current
+        // Skip auto-pin scrolling while we're aligning user message to top
+        if (pendingAlignUserToTopRef.current) return
+        const el = messagesContainerRef.current
+        if (!el) return
+        if (isPinnedToBottom) {
             el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
         }
-    }, [messages?.length, isProcessing])
+    }, [messages, isProcessing, isPinnedToBottom])
+
+    // Track whether user is near the bottom to enable/disable pinning
+    useEffect(() => {
+        const el = messagesContainerRef.current
+        if (!el) return
+
+        const handleScroll = () => {
+            const threshold = 32 // px tolerance to treat as bottom
+            const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight)
+            const atBottom = distanceFromBottom <= threshold
+            setIsPinnedToBottom(atBottom)
+        }
+
+        el.addEventListener('scroll', handleScroll, { passive: true })
+        // Initialize state once mounted
+        handleScroll()
+
+        // Observe content size changes to auto-scroll when pinned
+        let resizeObserver
+        if ('ResizeObserver' in window) {
+            resizeObserver = new ResizeObserver(() => {
+                if (isPinnedToBottom) {
+                    el.scrollTo({ top: el.scrollHeight, behavior: 'auto' })
+                }
+            })
+            resizeObserver.observe(el)
+        }
+
+        return () => {
+            el.removeEventListener('scroll', handleScroll)
+            if (resizeObserver) resizeObserver.disconnect()
+        }
+    }, [isPinnedToBottom])
 
     useEffect(() => {
         if (!textareaRef.current) return
@@ -103,7 +146,37 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
         onSend?.(text, attachedFiles)
         setInput('')
         setAttachedFiles([])
+        // Defer alignment until after messages update so refs are present
+        pendingAlignUserToTopRef.current = true
     }
+
+    // After messages update (user message added), align that user message near the top
+    useEffect(() => {
+        if (!pendingAlignUserToTopRef.current) return
+        const container = messagesContainerRef.current
+        if (!container) return
+        const lastUser = Array.isArray(messages)
+            ? [...messages].reverse().find(m => m && m.role === 'user')
+            : null
+        if (!lastUser) {
+            pendingAlignUserToTopRef.current = false
+            return
+        }
+        const targetEl = messageRefs.current.get(lastUser.id)
+        if (!targetEl) return
+        // Next frame to ensure DOM layout is up-to-date
+        requestAnimationFrame(() => {
+            const contTop = container.getBoundingClientRect().top
+            const elTop = targetEl.getBoundingClientRect().top
+            const newTop = container.scrollTop + (elTop - contTop)
+            // Also ensure the window is at page top
+            try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch { }
+            container.scrollTo({ top: Math.max(newTop, 0), behavior: 'smooth' })
+            setIsPinnedToBottom(false)
+            lastUserAlignedRef.current = lastUser.id
+            pendingAlignUserToTopRef.current = false
+        })
+    }, [messages])
 
     // Split into stable (non-streaming) messages and the current streaming assistant message (if any)
     const streamingIdx = useMemo(() => {
@@ -149,10 +222,17 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                     )}
                 </AnimatePresence>
 
-                {stableMessages?.map((m) => (
-                    <div key={m.id} className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
+                {stableMessages?.map((m, index) => (
+                    <div
+                        key={m.id}
+                        ref={(el) => {
+                            if (el) messageRefs.current.set(m.id, el)
+                            else messageRefs.current.delete(m.id)
+                        }}
+                        className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'} ${index > 0 ? 'mt-6' : ''}`}
+                    >
                         {m.role === 'user' ? (
-                            <div className="max-w-[85%]" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <div className="max-w-[85%]">
                                 <div className="rounded-2xl px-4 py-2 bg-gray-800/70 border border-gray-700 text-gray-100 break-all">
                                     {m.content}
                                     {Array.isArray(m.files) && m.files.length > 0 && (
@@ -183,7 +263,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                 )}
                             </div>
                         ) : (
-                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <div className="w-full text-gray-100 leading-relaxed break-words">
                                 {m.streaming ? (
                                     <StreamingMessageView text={m.content || ''} />
                                 ) : (
@@ -244,7 +324,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
 
                 <AnimatePresence>
                     {isProcessing && (
-                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-center gap-2 text-gray-400">
+                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="flex items-center gap-2 text-gray-400 mt-4">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Thinking…
                         </motion.div>
@@ -263,15 +343,49 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
             {/* Messages */}
             <div
                 ref={messagesContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 custom-scrollbar space-y-4 relative"
+                className="flex-1 min-h-0 overflow-y-auto pt-6 custom-scrollbar relative"
             >
-                {stableView}
-                {streamingIdx >= 0 && messages[streamingIdx]?.role === 'assistant' && (
-                    <div key={messages[streamingIdx].id} className="flex justify-start">
-                        <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
-                            <StreamingMessageView text={messages[streamingIdx].content || ''} />
+                {/* Centered container for all messages */}
+                <div className="w-full max-w-[900px] mx-auto px-4 space-y-6">
+                    {stableView}
+                    {streamingIdx >= 0 && messages[streamingIdx]?.role === 'assistant' && (
+                        <div
+                            key={messages[streamingIdx].id}
+                            className="flex justify-start mt-6"
+                            ref={(el) => {
+                                if (!el) return
+                                // When assistant starts streaming right after a user send, keep the user message at top
+                                // and allow stream to push upward.
+                                const elContainer = messagesContainerRef.current
+                                if (!elContainer) return
+                                if (lastUserAlignedRef.current) {
+                                    // Do not auto-pin while we keep gap, user can still scroll manually
+                                    setIsPinnedToBottom(false)
+                                }
+                            }}
+                        >
+                            <div className="w-full text-gray-100 leading-relaxed break-words">
+                                <StreamingMessageView text={messages[streamingIdx].content || ''} />
+                            </div>
                         </div>
-                    </div>
+                    )}
+                </div>
+
+                {/* Scroll-to-bottom button */}
+                {!isPinnedToBottom && (
+                    <button
+                        onClick={() => {
+                            const el = messagesContainerRef.current
+                            if (el) {
+                                el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+                                setIsPinnedToBottom(true)
+                            }
+                        }}
+                        className="fixed right-4 bottom-24 md:bottom-28 z-40 inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-800/90 border border-gray-700 text-gray-100 shadow-lg hover:bg-gray-700 transition-colors"
+                        title="Scroll to bottom"
+                    >
+                        <ChevronDown className="w-5 h-5" />
+                    </button>
                 )}
             </div>
 
