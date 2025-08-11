@@ -24,6 +24,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
     const lastAlignedStreamIdRef = useRef(null)
     const lastUserAlignedRef = useRef(null)
     const prevMessagesCountRef = useRef(0)
+    const pendingAlignUserToTopRef = useRef(false)
 
     const fileTypes = [
         { id: 'images', name: 'Images', icon: ImageIcon, description: 'PNG, JPG, GIF' },
@@ -33,6 +34,8 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
 
     // Keep view pinned to bottom while streaming/new messages, unless user scrolled up
     useEffect(() => {
+        // Skip auto-pin scrolling while we're aligning user message to top
+        if (pendingAlignUserToTopRef.current) return
         const el = messagesContainerRef.current
         if (!el) return
         if (isPinnedToBottom) {
@@ -143,27 +146,37 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
         onSend?.(text, attachedFiles)
         setInput('')
         setAttachedFiles([])
-        // Align the just-sent user message to the top for visual space
-        try {
-            const el = messagesContainerRef.current
-            if (!el) return
-            // The last message in stable list will be the user one just before streaming starts
-            // So defer the scroll into view slightly
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    const allIds = (messages || []).map(m => m.id)
-                    const lastUser = [...(messages || [])].reverse().find(m => m.role === 'user')
-                    const targetEl = lastUser ? messageRefs.current.get(lastUser.id) : null
-                    if (targetEl) {
-                        const topOfTarget = targetEl.getBoundingClientRect().top + el.scrollTop - el.getBoundingClientRect().top
-                        el.scrollTo({ top: topOfTarget - 12, behavior: 'smooth' })
-                        setIsPinnedToBottom(false)
-                        lastUserAlignedRef.current = lastUser.id
-                    }
-                })
-            })
-        } catch { }
+        // Defer alignment until after messages update so refs are present
+        pendingAlignUserToTopRef.current = true
     }
+
+    // After messages update (user message added), align that user message near the top
+    useEffect(() => {
+        if (!pendingAlignUserToTopRef.current) return
+        const container = messagesContainerRef.current
+        if (!container) return
+        const lastUser = Array.isArray(messages)
+            ? [...messages].reverse().find(m => m && m.role === 'user')
+            : null
+        if (!lastUser) {
+            pendingAlignUserToTopRef.current = false
+            return
+        }
+        const targetEl = messageRefs.current.get(lastUser.id)
+        if (!targetEl) return
+        // Next frame to ensure DOM layout is up-to-date
+        requestAnimationFrame(() => {
+            const contTop = container.getBoundingClientRect().top
+            const elTop = targetEl.getBoundingClientRect().top
+            const newTop = container.scrollTop + (elTop - contTop)
+            // Also ensure the window is at page top
+            try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch { }
+            container.scrollTo({ top: Math.max(newTop, 0), behavior: 'smooth' })
+            setIsPinnedToBottom(false)
+            lastUserAlignedRef.current = lastUser.id
+            pendingAlignUserToTopRef.current = false
+        })
+    }, [messages])
 
     // Split into stable (non-streaming) messages and the current streaming assistant message (if any)
     const streamingIdx = useMemo(() => {
