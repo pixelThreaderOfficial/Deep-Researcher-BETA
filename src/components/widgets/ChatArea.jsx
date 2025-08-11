@@ -6,6 +6,8 @@ import { FileText, Image as ImageIcon, File } from 'lucide-react'
 import '../../md.css'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import CodeBlock from './CodeBlock'
+import StreamingMarkdown from './StreamingMarkdown'
 
 const ChatArea = ({ messages, onSend, isProcessing }) => {
     const [input, setInput] = useState('')
@@ -103,17 +105,11 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
         setAttachedFiles([])
     }
 
-    const hasUserMessage = Array.isArray(messages) && messages.some(m => m.role === 'user')
-    const isEmpty = Array.isArray(messages) ? messages.length === 0 : true
-
-    return (
-        <div className="flex-1 min-h-0 flex flex-col">
-
-            {/* Messages */}
-            <div
-                ref={messagesContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 custom-scrollbar space-y-4 relative"
-            >
+    const messagesView = useMemo(() => {
+        const hasUserMessage = Array.isArray(messages) && messages.some(m => m.role === 'user')
+        const isEmpty = Array.isArray(messages) ? messages.length === 0 : true
+        return (
+            <>
                 <AnimatePresence>
                     {(!hasUserMessage && isEmpty) && (
                         <motion.div
@@ -134,7 +130,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                     )}
                 </AnimatePresence>
 
-                {messages?.map((m, idx) => (
+                {messages?.map((m) => (
                     <div key={m.id} className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
                         {m.role === 'user' ? (
                             <div className="max-w-[85%]" style={{ maxWidth: 'min(900px, 85%)' }}>
@@ -170,12 +166,20 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                         ) : (
                             <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
                                 {m.streaming ? (
-                                    <div className="md max-w-none">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || ''}</ReactMarkdown>
-                                    </div>
+                                    <StreamingMarkdown text={m.content || ''} />
                                 ) : (
                                     <div className="md max-w-none">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || ''}</ReactMarkdown>
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                // After stream completes, allow Monaco for multi-line blocks
+                                                code: ({ inline, className, children, ...props }) => (
+                                                    <CodeBlock inline={inline} className={className} {...props}>{children}</CodeBlock>
+                                                )
+                                            }}
+                                        >
+                                            {m.content || ''}
+                                        </ReactMarkdown>
                                     </div>
                                 )}
                                 {/* Assistant actions */}
@@ -229,6 +233,19 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                 </AnimatePresence>
                 {/* spacer */}
                 <div />
+            </>
+        )
+    }, [messages, isProcessing])
+
+    return (
+        <div className="flex-1 min-h-0 flex flex-col">
+
+            {/* Messages */}
+            <div
+                ref={messagesContainerRef}
+                className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 custom-scrollbar space-y-4 relative"
+            >
+                {messagesView}
             </div>
 
             {/* Composer */}
