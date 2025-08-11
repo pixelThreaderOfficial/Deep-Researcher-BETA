@@ -8,6 +8,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
     const [input, setInput] = useState('')
     const [attachedFiles, setAttachedFiles] = useState([])
     const [isRecording, setIsRecording] = useState(false)
+    const [isMultiline, setIsMultiline] = useState(false)
     const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false)
     const messagesContainerRef = useRef(null)
     const textareaRef = useRef(null)
@@ -29,9 +30,14 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
 
     useEffect(() => {
         if (!textareaRef.current) return
-        textareaRef.current.style.height = 'auto'
-        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-    }, [input])
+        const el = textareaRef.current
+        el.style.height = 'auto'
+        el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+        const hasNewline = input.includes('\n')
+        const overflowed = (el.scrollHeight - el.clientHeight) > 6
+        const hasAttachments = attachedFiles.length > 0
+        setIsMultiline(hasNewline || overflowed || hasAttachments)
+    }, [input, attachedFiles.length])
 
     const getAcceptedFileTypes = (fileTypeName) => {
         switch (fileTypeName) {
@@ -112,13 +118,13 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: '40vh', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.35, ease: 'easeInOut' }}
+                            transition={{ duration: 1, ease: 'easeInOut' }}
                             className="w-full"
                         >
                             <div className="h-full w-full flex items-center justify-center text-center">
                                 <div>
-                                    <h2 className="text-4xl sm:text-6xl font-bold merienda text-gray-100">Good to see you, Boss.</h2>
-                                    <p className="mt-2 text-gray-400 text-base">Start a conversation or attach files for analysis.</p>
+                                    <h2 className="text-4xl sm:text-6xl font-bold merienda text-gray-100">Good Afternoon, Mr. Rana</h2>
+                                    <p className="mt-10 text-gray-400 text-base">Start a conversation or attach files for analysis.</p>
                                 </div>
                             </div>
                         </motion.div>
@@ -181,18 +187,15 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
             {/* Composer */}
             <div className="p-3">
                 <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 220, damping: 20 }}
-                    className={`bg-gray-800/80 border border-gray-700 ${(input.trim().length === 0 && attachedFiles.length === 0)
-                        ? 'rounded-full'
-                        : (input.includes('\n') ? 'rounded-[20px]' : 'rounded-2xl')
-                        } p-3`}
+                    initial={{ y: 20, opacity: 0, borderRadius: 999 }}
+                    animate={{ y: 0, opacity: 1, borderRadius: isMultiline ? 14 : 999 }}
+                    transition={{ type: 'spring', stiffness: 220, damping: 22, mass: 0.6 }}
+                    className={`bg-gray-800/80 border border-gray-700 p-3 overflow-hidden`}
                 >
-                    <div className="flex items-center gap-3">
+                    <div className={`flex ${isMultiline ? 'items-end' : 'items-center'} gap-3`}>
                         <DropdownMenu onOpenChange={setIsFileDropdownOpen}>
                             <DropdownMenuTrigger asChild>
-                                <button className={`p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-600 rounded-lg transition-all duration-200 border ${isFileDropdownOpen ? 'border-gray-700/40 bg-gray-700/20' : 'border-transparent'}`}>
+                                <button className={`inline-flex items-center justify-center p-3 text-gray-400 hover:text-gray-200 hover:bg-gray-600 ${isMultiline ? 'rounded-md' : 'rounded-full'} transition-all duration-200 border ${isFileDropdownOpen ? 'border-gray-700/40 bg-gray-700/20' : 'border-transparent'}`}>
                                     <Paperclip className="w-5 h-5" />
                                 </button>
                             </DropdownMenuTrigger>
@@ -201,12 +204,12 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                     <DropdownMenuItem
                                         key={type.id}
                                         onClick={() => setTimeout(() => triggerFileInput(type.name), 50)}
-                                        className="text-gray-200 hover:bg-gray-700 focus:bg-gray-700 cursor-pointer px-3 py-2"
+                                        className="group text-gray-200 hover:text-white focus:text-white hover:bg-gray-700 focus:bg-gray-700 cursor-pointer px-3 py-2"
                                     >
                                         <type.icon className="w-4 h-4 mr-2" />
                                         <div>
-                                            <div className="font-medium">{type.name}</div>
-                                            <div className="text-xs text-gray-400">{type.description}</div>
+                                            <div className="font-medium group-hover:text-white group-focus:text-white">{type.name}</div>
+                                            <div className="text-xs text-gray-400 group-hover:text-gray-200 group-focus:text-gray-200">{type.description}</div>
                                         </div>
                                     </DropdownMenuItem>
                                 ))}
@@ -215,9 +218,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
 
                         <textarea
                             ref={textareaRef}
-                            className={`flex-1 bg-transparent text-gray-100 resize-none outline-none text-base max-h-[200px] placeholder:text-gray-400 ${(input.includes('\n'))
-                                ? 'py-2 leading-relaxed min-h-[48px]'
-                                : 'h-[44px] min-h-[44px] leading-[44px] py-0'
+                            className={`flex-1 bg-transparent text-gray-100 resize-none outline-none text-base max-h-[200px] placeholder:text-gray-400 ${isMultiline ? 'py-2 leading-relaxed min-h-[48px]' : 'h-[44px] min-h-[44px] leading-[44px] py-0'
                                 } px-0`}
                             placeholder="Ask anything… (Enter to send, Shift+Enter for new line)"
                             value={input}
@@ -236,7 +237,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                 if (!isRecording) { setIsRecording(true); startRecording() }
                                 else { setIsRecording(false); stopRecording() }
                             }}
-                            className={`p-2 rounded-lg transition-colors duration-200 ${isRecording ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'}`}
+                            className={`inline-flex items-center justify-center p-3 ${isMultiline ? 'rounded-md' : 'rounded-full'} transition-colors duration-200 ${isRecording ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'}`}
                         >
                             {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                         </button>
@@ -244,7 +245,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                         <button
                             onClick={send}
                             disabled={isProcessing || (!input.trim() && attachedFiles.length === 0)}
-                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 text-white p-2 rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
+                            className={`inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 text-white p-3 ${isMultiline ? 'rounded-md' : 'rounded-full'} transition-colors duration-200 disabled:cursor-not-allowed`}
                         >
                             {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                         </button>
@@ -258,12 +259,12 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                         {attachedFiles.length > 0 && (
                             <motion.div className="mt-3 flex flex-wrap gap-2" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                                 {attachedFiles.map((f, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200">
+                                    <div key={idx} className="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-sm text-gray-200">
                                         <File className="w-4 h-4 text-blue-400" />
                                         <span className="truncate max-w-36">{f.file.name}</span>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <button className={`text-xs px-2 py-0.5 rounded ${f.importance === 'high' ? 'bg-red-500/30 text-red-300' : f.importance === 'medium' ? 'bg-yellow-500/30 text-yellow-300' : 'bg-blue-500/30 text-blue-300'}`}>{f.importance}</button>
+                                                <button className={`text-xs px-2 py-0.5 rounded-md ${f.importance === 'high' ? 'bg-red-500/30 text-red-300' : f.importance === 'medium' ? 'bg-yellow-500/30 text-yellow-300' : 'bg-blue-500/30 text-blue-300'}`}>{f.importance}</button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent className="bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50">
                                                 <DropdownMenuItem onClick={() => updateFileImportance(idx, 'high')} className="text-red-300 hover:bg-gray-700 cursor-pointer">High</DropdownMenuItem>
@@ -271,7 +272,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                                 <DropdownMenuItem onClick={() => updateFileImportance(idx, 'low')} className="text-blue-300 hover:bg-gray-700 cursor-pointer">Low</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
-                                        <button onClick={() => removeFile(idx)} className="text-gray-400 hover:text-red-400 p-1">✕</button>
+                                        <button onClick={() => removeFile(idx)} className="text-gray-400 hover:text-red-400 p-1 rounded-md">✕</button>
                                     </div>
                                 ))}
                             </motion.div>
