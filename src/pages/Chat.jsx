@@ -54,20 +54,24 @@ const Chat = () => {
                     [id]: [...(prev[id] || []), initialMsg]
                 }))
                 // Also synthesize an assistant reply for the seeded message
-                setTimeout(() => {
-                    setMessagesByChat(prev => {
-                        const list = prev[id] || []
-                        const last = list[list.length - 1]
-                        if (last && last.role === 'assistant') return prev
-                        const reply = {
-                            id: Date.now() + 1,
-                            role: 'assistant',
-                            content: generateSyntheticResponse(initialMsg.content, initialMsg.files),
-                            createdAt: new Date().toISOString()
-                        }
-                        return { ...prev, [id]: [...list, reply] }
-                    })
-                }, 550)
+                // Stream synthetic response
+                const full = generateSyntheticResponse(initialMsg.content, initialMsg.files)
+                const replyId = Date.now() + 1
+                setMessagesByChat(prev => ({
+                    ...prev,
+                    [id]: [...(prev[id] || []), { id: replyId, role: 'assistant', content: '', streaming: true, createdAt: new Date().toISOString() }]
+                }))
+                const tokens = full.split(/(\s+)/)
+                let acc = ''
+                tokens.forEach((t, i) => {
+                    setTimeout(() => {
+                        acc += t
+                        setMessagesByChat(prev => ({
+                            ...prev,
+                            [id]: (prev[id] || []).map(m => m.id === replyId ? { ...m, content: acc, streaming: i < tokens.length - 1 } : m)
+                        }))
+                    }, 10 * i)
+                })
             }
             navigate(location.pathname, { replace: true, state: {} })
         }
@@ -98,18 +102,24 @@ const Chat = () => {
         }))
         setIsProcessing(true)
 
-        // Synthetic AI behavior: add one generated reply after a brief delay
-        await new Promise((r) => setTimeout(r, 550))
-        setMessagesByChat((prev) => {
-            const nowList = prev[activeChatId] || []
-            // If the last message is already assistant (avoid duplicates), do not append
-            const last = nowList[nowList.length - 1]
-            if (last && last.role === 'assistant') return prev
-            const reply = { id: Date.now() + 1, role: 'assistant', content: generateSyntheticResponse(text, files), createdAt: new Date().toISOString() }
-            return {
-                ...prev,
-                [activeChatId]: [...nowList, reply],
-            }
+        // Synthetic AI behavior: streamed reply
+        await new Promise((r) => setTimeout(r, 250))
+        const full = generateSyntheticResponse(text, files)
+        const replyId = Date.now() + 1
+        setMessagesByChat(prev => ({
+            ...prev,
+            [activeChatId]: [...(prev[activeChatId] || []), { id: replyId, role: 'assistant', content: '', streaming: true, createdAt: new Date().toISOString() }]
+        }))
+        const tokens = full.split(/(\s+)/)
+        let acc = ''
+        tokens.forEach((t, i) => {
+            setTimeout(() => {
+                acc += t
+                setMessagesByChat(prev => ({
+                    ...prev,
+                    [activeChatId]: (prev[activeChatId] || []).map(m => m.id === replyId ? { ...m, content: acc, streaming: i < tokens.length - 1 } : m)
+                }))
+            }, 10 * i)
         })
         setIsProcessing(false)
     }

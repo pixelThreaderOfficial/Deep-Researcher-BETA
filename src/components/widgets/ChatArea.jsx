@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Mic, MicOff, Paperclip, Send, Loader2, Copy, Volume2, RefreshCw, Sparkles } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { FileText, Image as ImageIcon, File } from 'lucide-react'
+import StreamingText from './StreamingText'
 
 const ChatArea = ({ messages, onSend, isProcessing }) => {
     const [input, setInput] = useState('')
@@ -166,7 +167,11 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                             </div>
                         ) : (
                             <div className="max-w-[85%] text-gray-100 leading-relaxed break-all" style={{ maxWidth: 'min(900px, 85%)' }}>
-                                {m.content}
+                                {m.streaming ? (
+                                    <StreamingText text={m.content} appearDelay={0.01} />
+                                ) : (
+                                    m.content
+                                )}
                                 {/* Assistant actions */}
                                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                                     <button
