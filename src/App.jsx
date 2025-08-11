@@ -1,5 +1,5 @@
 import { AIInput } from "./components/widgets";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Chat from "./pages/Chat";
 
 // Main App component
@@ -8,7 +8,8 @@ const App = () => {
     <div className="">
       <Routes>
         <Route path="/" element={<AIInput />} />
-        <Route path="/chat" element={<Chat />} />
+        <Route path="/chat/:id" element={<Chat />} />
+        <Route path="/chat" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   )

@@ -27,6 +27,8 @@ import Aurora from '../bits/Aurora/Aurora';
 import GradientText from '../bits/GradientText/GradientText';
 import ClickSpark from '../bits/ClickSpark/ClickSpark';
 import AIInputSettingModal from './AIInputSettingModal';
+import { useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 
 const AIInput = () => {
     const [query, setQuery] = useState('');
@@ -91,6 +93,8 @@ const AIInput = () => {
         textAlign: "center",
     }), []);
 
+    const navigate = useNavigate();
+
     const handleSend = async () => {
         if (query.trim() || attachedFiles.length > 0) {
             setIsProcessing(true);
@@ -118,6 +122,18 @@ const AIInput = () => {
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
+
+            // Navigate to chat route with a new uuid and seed initial message
+            const id = uuidv4();
+            const initialMsg = {
+                id: Date.now(),
+                role: 'user',
+                content: query.trim(),
+                createdAt: new Date().toISOString(),
+                // Pass lightweight file descriptors (names only) to avoid serializing File objects
+                files: attachedFiles.map(f => ({ file: { name: f.file?.name || 'attachment' }, importance: f.importance }))
+            };
+            navigate(`/chat/${id}`, { state: { initialMsg } });
         } else {
             setMessageDisplayVisible(true);
             setQuery("Please enter a query or attach a file.");
