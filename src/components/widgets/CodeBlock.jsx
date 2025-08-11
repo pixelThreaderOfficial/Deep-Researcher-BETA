@@ -60,6 +60,9 @@ function CodeBlockImpl({ className = '', inline, streaming = false, children, ..
         setIsCollapsed(!isCollapsed)
     }
 
+    // Special handling for markdown: render as plain text
+    const isMarkdown = language === 'markdown' || language === 'md'
+
     return (
         <div className="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-gray-900/70">
@@ -83,20 +86,34 @@ function CodeBlockImpl({ className = '', inline, streaming = false, children, ..
                 </div>
             </div>
             <div className="py-3" style={{ backgroundColor: '#1e1e1e' }}>
-                <Editor
-                    height={`${dynamicHeight}px`}
-                    defaultLanguage={language}
-                    {...(streaming ? { defaultValue: value } : { value })}
-                    onMount={(editor) => { editorRef.current = editor }}
-                    options={{
-                        readOnly: true,
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        wordWrap: 'on',
-                        automaticLayout: true
-                    }}
-                    theme="vs-dark"
-                />
+                {isMarkdown ? (
+                    // For markdown, render as plain text with monospace font
+                    <div
+                        className="px-4 py-2 text-gray-200 font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-auto"
+                        style={{
+                            height: `${dynamicHeight}px`,
+                            backgroundColor: '#1e1e1e',
+                            maxHeight: isCollapsed ? '200px' : '800px'
+                        }}
+                    >
+                        {value}
+                    </div>
+                ) : (
+                    <Editor
+                        height={`${dynamicHeight}px`}
+                        defaultLanguage={language}
+                        {...(streaming ? { defaultValue: value } : { value })}
+                        onMount={(editor) => { editorRef.current = editor }}
+                        options={{
+                            readOnly: true,
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            wordWrap: 'on',
+                            automaticLayout: true
+                        }}
+                        theme="vs-dark"
+                    />
+                )}
             </div>
         </div>
     )

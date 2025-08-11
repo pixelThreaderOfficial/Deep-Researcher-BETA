@@ -50,6 +50,9 @@ function StreamingMonacoImpl({ language = 'plaintext', value = '', showHeader = 
     // Avoid tearing on final lines: freeze language to initial to prevent worker swap mid-stream
     const fixedLanguage = lastLangRef.current
 
+    // Special handling for markdown: render as plain text with syntax highlighting
+    const isMarkdown = fixedLanguage === 'markdown' || fixedLanguage === 'md'
+
     return (
         <div className="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
             {showHeader && (
@@ -75,28 +78,42 @@ function StreamingMonacoImpl({ language = 'plaintext', value = '', showHeader = 
                 </div>
             )}
             <div className="py-3" style={{ backgroundColor: '#1e1e1e' }}>
-                <Editor
-                    height={`${dynamicHeight}px`}
-                    defaultLanguage={fixedLanguage}
-                    defaultValue={value}
-                    onMount={(editor) => {
-                        editorRef.current = editor
-                        // ensure initial value set exactly once
-                        if (initialRef.current) {
-                            const model = editor.getModel?.()
-                            if (model && model.getValue() !== value) model.setValue(value)
-                            initialRef.current = false
-                        }
-                    }}
-                    options={{
-                        readOnly: true,
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        wordWrap: 'on',
-                        automaticLayout: true
-                    }}
-                    theme="vs-dark"
-                />
+                {isMarkdown ? (
+                    // For markdown, render as plain text with monospace font
+                    <div
+                        className="px-4 py-2 text-gray-200 font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-auto"
+                        style={{
+                            height: `${dynamicHeight}px`,
+                            backgroundColor: '#1e1e1e',
+                            maxHeight: isCollapsed ? '200px' : '800px'
+                        }}
+                    >
+                        {value}
+                    </div>
+                ) : (
+                    <Editor
+                        height={`${dynamicHeight}px`}
+                        defaultLanguage={fixedLanguage}
+                        defaultValue={value}
+                        onMount={(editor) => {
+                            editorRef.current = editor
+                            // ensure initial value set exactly once
+                            if (initialRef.current) {
+                                const model = editor.getModel?.()
+                                if (model && model.getValue() !== value) model.setValue(value)
+                                initialRef.current = false
+                            }
+                        }}
+                        options={{
+                            readOnly: true,
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            wordWrap: 'on',
+                            automaticLayout: true
+                        }}
+                        theme="vs-dark"
+                    />
+                )}
             </div>
         </div>
     )
