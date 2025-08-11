@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Mic, MicOff, Paperclip, Send, Loader2, Copy, Volume2, RefreshCw, Sparkles } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { FileText, Image as ImageIcon, File } from 'lucide-react'
-import StreamingText from './StreamingText'
+import '../../md.css'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const ChatArea = ({ messages, onSend, isProcessing }) => {
     const [input, setInput] = useState('')
@@ -166,11 +168,15 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                                 )}
                             </div>
                         ) : (
-                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-words whitespace-pre-wrap" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
                                 {m.streaming ? (
-                                    <StreamingText text={m.content} />
+                                    <div className="md max-w-none">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || ''}</ReactMarkdown>
+                                    </div>
                                 ) : (
-                                    m.content
+                                    <div className="md max-w-none">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || ''}</ReactMarkdown>
+                                    </div>
                                 )}
                                 {/* Assistant actions */}
                                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
