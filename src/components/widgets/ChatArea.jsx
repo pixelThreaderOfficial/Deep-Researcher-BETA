@@ -7,7 +7,7 @@ import '../../md.css'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import CodeBlock from './CodeBlock'
-import StreamingMarkdown from './StreamingMarkdown'
+import StreamingMessageView from './StreamingMessageView'
 
 const ChatArea = ({ messages, onSend, isProcessing }) => {
     const [input, setInput] = useState('')
@@ -105,9 +105,28 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
         setAttachedFiles([])
     }
 
-    const messagesView = useMemo(() => {
-        const hasUserMessage = Array.isArray(messages) && messages.some(m => m.role === 'user')
-        const isEmpty = Array.isArray(messages) ? messages.length === 0 : true
+    // Split into stable (non-streaming) messages and the current streaming assistant message (if any)
+    const streamingIdx = useMemo(() => {
+        if (!Array.isArray(messages)) return -1
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i]
+            if (m && m.role === 'assistant' && m.streaming) return i
+        }
+        return -1
+    }, [messages])
+
+    const stableMessages = useMemo(() => {
+        if (!Array.isArray(messages)) return []
+        return messages.filter((_, idx) => idx !== streamingIdx)
+    }, [messages, streamingIdx])
+
+    const stableKey = useMemo(() => {
+        return JSON.stringify(stableMessages.map(m => [m.id, m.content]))
+    }, [stableMessages])
+
+    const stableView = useMemo(() => {
+        const hasUserMessage = Array.isArray(stableMessages) && stableMessages.some(m => m.role === 'user')
+        const isEmpty = Array.isArray(stableMessages) ? stableMessages.length === 0 : true
         return (
             <>
                 <AnimatePresence>
@@ -130,7 +149,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                     )}
                 </AnimatePresence>
 
-                {messages?.map((m) => (
+                {stableMessages?.map((m) => (
                     <div key={m.id} className={`flex ${m.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
                         {m.role === 'user' ? (
                             <div className="max-w-[85%]" style={{ maxWidth: 'min(900px, 85%)' }}>
@@ -166,7 +185,7 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                         ) : (
                             <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
                                 {m.streaming ? (
-                                    <StreamingMarkdown text={m.content || ''} />
+                                    <StreamingMessageView text={m.content || ''} />
                                 ) : (
                                     <div className="md max-w-none">
                                         <ReactMarkdown
@@ -235,7 +254,8 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                 <div />
             </>
         )
-    }, [messages, isProcessing])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stableKey, isProcessing])
 
     return (
         <div className="flex-1 min-h-0 flex flex-col">
@@ -245,7 +265,14 @@ const ChatArea = ({ messages, onSend, isProcessing }) => {
                 ref={messagesContainerRef}
                 className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 custom-scrollbar space-y-4 relative"
             >
-                {messagesView}
+                {stableView}
+                {streamingIdx >= 0 && messages[streamingIdx]?.role === 'assistant' && (
+                    <div key={messages[streamingIdx].id} className="flex justify-start">
+                        <div className="max-w-[85%] text-gray-100 leading-relaxed break-words" style={{ maxWidth: 'min(900px, 85%)' }}>
+                            <StreamingMessageView text={messages[streamingIdx].content || ''} />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Composer */}

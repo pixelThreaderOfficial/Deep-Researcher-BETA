@@ -54,14 +54,14 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-.md pre,
+/* .md pre,
 .md .prose pre {
     background: rgb(17 24 39 / 0.9);
     border: 1px solid rgb(55 65 81 / 0.7);
     border-radius: 10px;
     padding: 0.85rem 1rem;
     overflow: auto;
-}
+} */
 
 .md blockquote,
 .md .prose blockquote {
