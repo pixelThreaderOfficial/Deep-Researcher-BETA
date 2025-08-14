@@ -20,7 +20,7 @@ static RUNNING_TASKS: Lazy<Arc<Mutex<HashMap<String, JoinHandle<()>>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ChatMessage {
+pub struct ChatMessage {    
     pub role: String, // "user" | "assistant" | "system"
     pub content: String,
 }
