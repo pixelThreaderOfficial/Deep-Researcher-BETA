@@ -266,10 +266,10 @@ const AIInput = () => {
                                 className="cursor-default"
                             >
                                 <h1 className="text-7xl font-bold mb-10 merienda">
-                                    Deep Researcher AI
+                                    Chat with AI
                                 </h1>
                             </GradientText>
-                            <p className="text-gray-300 text-lg">Advanced AI-powered research and analysis</p>
+                            <p className="text-gray-300 text-lg">Advanced AI-powered chat</p>
                         </motion.div>
 
                         {/* Main Input Container */}
